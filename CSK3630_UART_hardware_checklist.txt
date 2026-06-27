@@ -1,0 +1,69 @@
+CSK3630_UART hardware acceptance checklist
+
+1. Program FPGA
+- Open CSK3630_UART.qpf in Quartus.
+- Program output_files/CSK3630_UART.sof.
+- Do not use the old CSK_3630_UART project name.
+
+2. Serial assistant setup
+- Select the CH340 COM port.
+- Baud rate: 115200
+- Data bits: 8
+- Stop bits: 1
+- Parity: none
+- Send mode: HEX
+- Receive mode: HEX
+
+Optional PC-side automatic check:
+- If pyserial is missing:
+  python -m pip install pyserial
+- List serial ports:
+  python CSK3630_UART_serial_acceptance.py --list
+- Run all acceptance commands:
+  python CSK3630_UART_serial_acceptance.py --port COM3
+- Replace COM3 with the actual CH340 COM port.
+
+3. Basic single-byte communication
+- Send: AA
+  Expect PC receive: AA
+  Expect display RX/TX area: AAAA or RX=AA, TX=AA
+
+- Send: 55
+  Expect PC receive: 55
+  Note: 55 is also the protocol header. When sent alone, FPGA echoes it after
+  a short timeout.
+
+- Send: 0F
+  Expect PC receive: 0F
+
+4. Simple command protocol
+Frame format:
+55 CMD ADDR DATA CHECK
+
+Write address 03 with data 5A:
+- Send: 55 A1 03 5A F9
+- Expect PC receive: 06
+- Expect display left four digits: 5A06
+
+Read address 03:
+- Send: 55 A2 03 00 A1
+- Expect PC receive: 5A
+
+Erase address 03:
+- Send: 55 A3 03 00 A0
+- Expect PC receive: 06
+
+Read address 03 again:
+- Send: 55 A2 03 00 A1
+- Expect PC receive: 00
+
+Bad checksum:
+- Send: 55 A1 03 5A 00
+- Expect PC receive: 15
+
+5. Notes for explaining to the teacher
+- UART frame is 1 start bit + 8 data bits + 1 stop bit.
+- In HEX mode, one byte is written as two hex digits, for example 5A.
+- The command frame contains multiple UART bytes. For example
+  55 A1 03 5A F9 is five UART frames, not one UART frame.
+- The FPGA stores 16 bytes internally. The simple demo uses address 03.

@@ -19,7 +19,9 @@ module tb_CSK3630_protocol;
     integer captured_count;
     reg clear_capture;
 
-    CSK3630_uart_protocol u_protocol (
+    CSK3630_uart_protocol #(
+        .BYTE_TIMEOUT_CLKS(20)
+    ) u_protocol (
         .clk(clk),
         .rst_n(rst_n),
         .rx_data(rx_data),
@@ -77,9 +79,21 @@ module tb_CSK3630_protocol;
         integer timeout;
         begin
             timeout = 0;
-            while (captured_count < expected_count && timeout < 80) begin
+            while (captured_count < expected_count && timeout < 300) begin
                 wait_clocks(1);
                 timeout = timeout + 1;
+            end
+        end
+    endtask
+
+    task expect_response_1;
+        input [7:0] b0;
+        begin
+            wait_response_count(1);
+            if (captured_count !== 1 || captured[0] !== b0) begin
+                $display("FAIL: expected 1-byte response %02h", b0);
+                $display("      got count=%0d %02h", captured_count, captured[0]);
+                $finish;
             end
         end
     endtask
@@ -122,6 +136,35 @@ module tb_CSK3630_protocol;
         end
     endtask
 
+    task expect_response_10;
+        input [7:0] b0;
+        input [7:0] b1;
+        input [7:0] b2;
+        input [7:0] b3;
+        input [7:0] b4;
+        input [7:0] b5;
+        input [7:0] b6;
+        input [7:0] b7;
+        input [7:0] b8;
+        input [7:0] b9;
+        begin
+            wait_response_count(10);
+            if (captured_count !== 10 ||
+                captured[0] !== b0 || captured[1] !== b1 || captured[2] !== b2 ||
+                captured[3] !== b3 || captured[4] !== b4 || captured[5] !== b5 ||
+                captured[6] !== b6 || captured[7] !== b7 || captured[8] !== b8 ||
+                captured[9] !== b9) begin
+                $display("FAIL: expected 10-byte response %02h %02h %02h %02h %02h %02h %02h %02h %02h %02h",
+                         b0,b1,b2,b3,b4,b5,b6,b7,b8,b9);
+                $display("      got count=%0d %02h %02h %02h %02h %02h %02h %02h %02h %02h %02h",
+                         captured_count, captured[0], captured[1], captured[2],
+                         captured[3], captured[4], captured[5], captured[6],
+                         captured[7], captured[8], captured[9]);
+                $finish;
+            end
+        end
+    endtask
+
     task expect_response_6;
         input [7:0] b0;
         input [7:0] b1;
@@ -154,6 +197,64 @@ module tb_CSK3630_protocol;
         wait_clocks(2);
 
         reset_capture();
+        send_byte(8'hA5);
+        expect_response_1(8'hA5);
+        if (last_rx_byte !== 8'hA5 || last_tx_byte !== 8'hA5) begin
+            $display("FAIL: single-byte echo should update last RX/TX bytes");
+            $finish;
+        end
+
+        reset_capture();
+        send_byte(8'h55);
+        wait_clocks(40);
+        expect_response_1(8'h55);
+
+        reset_capture();
+        send_byte(8'h55);
+        send_byte(8'hA1);
+        send_byte(8'h03);
+        send_byte(8'h5A);
+        send_byte(8'hF9);
+        expect_response_1(8'h06);
+        if (last_rx_byte !== 8'h5A || last_tx_byte !== 8'h06) begin
+            $display("FAIL: simple WRITE display bytes should be RX=5A TX=06, got RX=%02h TX=%02h",
+                     last_rx_byte, last_tx_byte);
+            $finish;
+        end
+
+        reset_capture();
+        send_byte(8'h55);
+        send_byte(8'hA2);
+        send_byte(8'h03);
+        send_byte(8'h00);
+        send_byte(8'hA1);
+        expect_response_1(8'h5A);
+
+        reset_capture();
+        send_byte(8'h55);
+        send_byte(8'hA3);
+        send_byte(8'h03);
+        send_byte(8'h00);
+        send_byte(8'hA0);
+        expect_response_1(8'h06);
+
+        reset_capture();
+        send_byte(8'h55);
+        send_byte(8'hA2);
+        send_byte(8'h03);
+        send_byte(8'h00);
+        send_byte(8'hA1);
+        expect_response_1(8'h00);
+
+        reset_capture();
+        send_byte(8'h55);
+        send_byte(8'hA1);
+        send_byte(8'h03);
+        send_byte(8'h5A);
+        send_byte(8'h00);
+        expect_response_1(8'h15);
+
+        reset_capture();
         send_byte(8'h55);
         send_byte(8'hAA);
         send_byte(8'h04);
@@ -180,6 +281,28 @@ module tb_CSK3630_protocol;
         send_byte(8'h01);
         send_byte(8'h01);
         expect_response_7(8'h55, 8'hAA, 8'h81, 8'h02, 8'h01, 8'hA5, 8'h27);
+
+        reset_capture();
+        send_byte(8'h55);
+        send_byte(8'hAA);
+        send_byte(8'h01);
+        send_byte(8'h04);
+        send_byte(8'h04);
+        send_byte(8'h11);
+        send_byte(8'h22);
+        send_byte(8'h33);
+        send_byte(8'h44);
+        send_byte(8'h45);
+        expect_response_6(8'h55, 8'hAA, 8'h80, 8'h04, 8'h00, 8'h84);
+
+        reset_capture();
+        send_byte(8'h55);
+        send_byte(8'hAA);
+        send_byte(8'h02);
+        send_byte(8'h04);
+        send_byte(8'h04);
+        send_byte(8'h02);
+        expect_response_10(8'h55, 8'hAA, 8'h81, 8'h04, 8'h04, 8'h11, 8'h22, 8'h33, 8'h44, 8'hC5);
 
         reset_capture();
         send_byte(8'h55);

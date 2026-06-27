@@ -5,6 +5,9 @@ output_files/
 work/
 *.qws
 
+# Python
+__pycache__/
+
 # Simulation
 transcript
 

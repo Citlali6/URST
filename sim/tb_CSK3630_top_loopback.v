@@ -16,6 +16,7 @@ module tb_CSK3630_top_loopback;
 
     reg [7:0] captured [0:7];
     integer captured_count;
+    reg clear_capture;
 
     CSK3630_UART #(
         .CLOCK_FREQ(1600),
@@ -82,13 +83,22 @@ module tb_CSK3630_top_loopback;
     endtask
 
     always @(posedge clk_50m) begin
-        if (!rst_n) begin
+        if (!rst_n || clear_capture) begin
             captured_count <= 0;
         end else if (mon_rx_valid) begin
             captured[captured_count] <= mon_rx_data;
             captured_count <= captured_count + 1;
         end
     end
+
+    task reset_capture;
+        begin
+            clear_capture = 1'b1;
+            @(posedge clk_50m);
+            clear_capture = 1'b0;
+            wait_clocks(1);
+        end
+    endtask
 
     task wait_response_count;
         input integer expected_count;
@@ -117,10 +127,49 @@ module tb_CSK3630_top_loopback;
     initial begin
         rst_n = 1'b0;
         uart_rx = 1'b1;
+        clear_capture = 1'b0;
         wait_clocks(12);
         rst_n = 1'b1;
         wait_clocks(24);
 
+        reset_capture();
+        send_uart_byte(8'h5A);
+        wait_response_count(1);
+        if (captured[0] !== 8'h5A) begin
+            $display("FAIL: top single-byte echo expected 5A got %02h", captured[0]);
+            $finish;
+        end
+
+        reset_capture();
+        send_uart_byte(8'h55);
+        send_uart_byte(8'hA1);
+        send_uart_byte(8'h03);
+        send_uart_byte(8'h5A);
+        send_uart_byte(8'hF9);
+        wait_response_count(1);
+        if (captured[0] !== 8'h06) begin
+            $display("FAIL: top simple WRITE expected ACK 06 got %02h", captured[0]);
+            $finish;
+        end
+        if (dut.u_seg7.hex_digits[31:16] !== 16'h5A06) begin
+            $display("FAIL: display should show RX/TX as 5A06 after simple WRITE, got %04h",
+                     dut.u_seg7.hex_digits[31:16]);
+            $finish;
+        end
+
+        reset_capture();
+        send_uart_byte(8'h55);
+        send_uart_byte(8'hA2);
+        send_uart_byte(8'h03);
+        send_uart_byte(8'h00);
+        send_uart_byte(8'hA1);
+        wait_response_count(1);
+        if (captured[0] !== 8'h5A) begin
+            $display("FAIL: top simple READ expected 5A got %02h", captured[0]);
+            $finish;
+        end
+
+        reset_capture();
         send_uart_byte(8'h55);
         send_uart_byte(8'hAA);
         send_uart_byte(8'h04);

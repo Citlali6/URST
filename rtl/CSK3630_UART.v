@@ -13,6 +13,7 @@ module CSK3630_UART #(
 );
     localparam integer SEG_DIV = (CLOCK_FREQ < 1000000) ? 1 : 25;
     localparam integer BLINK_RELOAD = (CLOCK_FREQ < 20) ? 1 : (CLOCK_FREQ / 20);
+    localparam integer UART_BYTE_TIMEOUT = ((CLOCK_FREQ / BAUD_RATE) < 1) ? 12 : ((CLOCK_FREQ / BAUD_RATE) * 12);
 
     wire tick_16x;
     wire [7:0] rx_data;
@@ -62,7 +63,9 @@ module CSK3630_UART #(
         .busy(tx_busy)
     );
 
-    CSK3630_uart_protocol u_protocol (
+    CSK3630_uart_protocol #(
+        .BYTE_TIMEOUT_CLKS(UART_BYTE_TIMEOUT)
+    ) u_protocol (
         .clk(clk_50m),
         .rst_n(rst_n),
         .rx_data(rx_data),
@@ -84,10 +87,10 @@ module CSK3630_UART #(
         .clk(clk_50m),
         .rst_n(rst_n),
         .hex_digits({
-            last_tx_byte[7:4],
-            last_tx_byte[3:0],
             last_rx_byte[7:4],
             last_rx_byte[3:0],
+            last_tx_byte[7:4],
+            last_tx_byte[3:0],
             last_cmd[3:0],
             last_addr[3:0],
             display_status,

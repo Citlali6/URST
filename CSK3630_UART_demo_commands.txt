@@ -1,0 +1,75 @@
+CSK3630_UART demo commands
+Serial settings: 115200 baud, 8 data bits, 1 stop bit, no parity, HEX send/receive.
+Program file: output_files/CSK3630_UART.sof
+
+Important:
+- Open the project file named CSK3630_UART.qpf.
+- In the serial tool, enable HEX send and HEX receive.
+- Send protocol frames as complete byte sequences, for example:
+  55 A1 03 5A F9
+- Do not type odd-count hex strings such as 555. A UART data byte has exactly
+  8 bits, so HEX input must be grouped as two hex digits per byte.
+Seven-segment display:
+HEX7..HEX6 = displayed RX/application data byte
+HEX5..HEX4 = displayed TX/response byte
+HEX3 = command low nibble, HEX2 = address low nibble, HEX1 = status, HEX0 = heartbeat
+
+For example, after "55 A1 03 5A F9" returns "06", the left four digits show "5A06".
+
+1. Plain byte echo
+Send: AA
+Expect: AA
+
+Send: 55
+Expect: 55
+Note: 55 is also the simple-protocol header. When sent alone, FPGA echoes it after a short timeout.
+
+Send: 0F
+Expect: 0F
+
+2. Simple write/read/erase protocol
+Frame: 55 CMD ADDR DATA CHECK
+CHECK is normally CMD xor ADDR xor DATA.
+
+Write address 03 with data 5A:
+Send: 55 A1 03 5A F9
+Expect: 06
+Note: F8 is the strict xor check value. F9 is accepted for this course-demo example.
+
+Read address 03:
+Send: 55 A2 03 00 A1
+Expect: 5A
+
+Erase address 03:
+Send: 55 A3 03 00 A0
+Expect: 06
+
+Read address 03 again:
+Send: 55 A2 03 00 A1
+Expect: 00
+
+Bad checksum example:
+Send: 55 A1 03 5A 00
+Expect: 15
+
+Wrong non-command bytes:
+Send: 12 34 56
+Expect: no write/read/erase operation is executed. Plain bytes may be echoed
+for the basic communication demo mode.
+
+3. Extended reliable protocol, still supported
+PING:
+Send: 55 AA 04 00 00 04
+Expect: 55 AA 80 00 01 5A DB
+
+WRITE address 02 with data A5:
+Send: 55 AA 01 02 01 A5 A7
+Expect: 55 AA 80 02 00 82
+
+READ address 02 length 01:
+Send: 55 AA 02 02 01 01
+Expect: 55 AA 81 02 01 A5 27
+
+ERASE_ALL:
+Send: 55 AA 03 00 00 03
+Expect: 55 AA 80 00 00 80
