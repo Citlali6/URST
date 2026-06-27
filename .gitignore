@@ -1,0 +1,13 @@
+# Quartus II / Quartus Prime build artifacts
+db/
+incremental_db/
+output_files/
+work/
+*.qws
+
+# Simulation
+transcript
+
+# OS
+Thumbs.db
+*.bak
